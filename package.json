@@ -3,10 +3,17 @@
   "version": "0.0.1",
   "description": "",
   "main": "src/cli.js",
+  "files": [
+    "src",
+    "template-files"
+  ],
   "bin": {
     "main": "src/cli.js"
   },
   "type": "module",
+  "engines": {
+      "node": ">=16.0.0"
+  },
   "scripts": {
     "lint": "npx eslint ."
   },
