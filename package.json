@@ -1,6 +1,6 @@
 {
   "name": "@rpappa/create",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "main": "src/cli.js",
   "files": [
@@ -12,7 +12,7 @@
   },
   "type": "module",
   "engines": {
-      "node": ">=16.0.0"
+    "node": ">=16.0.0"
   },
   "scripts": {
     "lint": "npx eslint ."
