@@ -12,3 +12,7 @@ Goals for this project:
 2. Get more in the habit of using linting and testing for personal projects
 
 Long term I'd like to migrate the TypeScript and eslint configs to their own packages, but this will do for now.
+
+# Usage
+
+From the directory where you want `package.json` to be, run `npm init @rpappa`
