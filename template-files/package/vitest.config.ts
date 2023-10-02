@@ -1,4 +1,4 @@
-// This is not striclty necessary outside of monorepo
+// This is not strictly necessary outside of monorepo
 
 import { defineConfig } from "vitest/config";
 import tsconfigPaths from "vite-tsconfig-paths";
