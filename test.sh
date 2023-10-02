@@ -18,7 +18,7 @@ cd $PROJECT_NAME
 
 echo "Creating a new project [$PROJECT_NAME]"
 
-node ../../src/cli.js
+node ../../src/cli.js $@
 
 # Prompt if we want to clean up
 read -p "Do you want to clean up? (y/n) " -n 1 -r

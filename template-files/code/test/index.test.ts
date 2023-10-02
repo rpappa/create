@@ -1,13 +1,14 @@
+import { describe, expect, test } from "vitest";
 import { hello, add } from "../src/index.js";
 
 describe("hello", () => {
-    it("says hello", () => {
+    test("says hello", () => {
         expect(hello("World")).toBe("Hello World!");
     });
 });
 
 describe("add", () => {
-    it("adds", () => {
+    test("adds", () => {
         expect(add(1, 2)).toBe(3);
     });
 });

@@ -2,7 +2,7 @@ module.exports = {
     root: true,
     overrides: [
         {
-            // Out of the box this just handles the eslint and jest config
+            // Out of the box this just handles the eslint config
             files: ["*.cjs", "*.js"],
             extends: ["xo", "plugin:prettier/recommended"],
             rules: {
