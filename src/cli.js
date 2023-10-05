@@ -7,13 +7,22 @@ import { exec } from "node:child_process";
 import prompts from "prompts";
 import jsonc from "jsonc-parser";
 
+console.log(`🔨 @rpappa/create version ${process.env.npm_package_version}`);
+
 const __filename = fileURLToPath(import.meta.url);
 
 const YES_ARG = process.argv.includes("--yes") || process.argv.includes("-y");
 const MONOREPO_ARG = process.argv.includes("--monorepo") || process.argv.includes("-m");
 
+// Creating a package in a monorepo, can pass "-w [directory ex packages/demoLib]"" or --workspace=[directory]
+const workspaceFlagIdx = process.argv.findIndex((arg) => arg === "-w");
+const CREATE_WORKSPACE_ARG =
+    process.argv.find((arg) => arg.startsWith("--workspace="))?.split("=")[1] ||
+    (workspaceFlagIdx !== -1 && process.argv[workspaceFlagIdx + 1]) ||
+    "";
+
 // find --scope=@SCOPE
-const defaultScope = process.argv.find((arg) => arg.startsWith("--scope="))?.split("=")[1] ?? "";
+const SCOPE_ARG = process.argv.find((arg) => arg.startsWith("--scope="))?.split("=")[1] ?? "";
 
 /**
  * Runs a shell command in the current directory
@@ -25,7 +34,7 @@ const defaultScope = process.argv.find((arg) => arg.startsWith("--scope="))?.spl
  * @param {string} command
  */
 async function runCommand(command) {
-    console.log(`Running command: ${command}`);
+    console.info(`Running command: ${command}`);
     return new Promise((resolve, reject) => {
         process.chdir(process.cwd());
         const child = exec(command, { cwd: process.cwd() });
@@ -59,7 +68,15 @@ async function runCommand(command) {
     });
 }
 
-async function checkCreateMonorepo() {
+async function checkCreateMonorepo(isCreatingWorkspace) {
+    if (!isCreatingWorkspace) {
+        if (MONOREPO_ARG) {
+            console.warn(`Ignoring --monorepo flag since creating a workspace`);
+        }
+
+        return false;
+    }
+
     if (MONOREPO_ARG) {
         return true;
     }
@@ -75,12 +92,12 @@ async function checkCreateMonorepo() {
 
 // Ask for a scope (optionally). If no @ is provided, prefix with @
 async function getScope(isOptional = true) {
-    if (defaultScope) {
-        if (defaultScope.startsWith("@")) {
-            return defaultScope;
+    if (SCOPE_ARG) {
+        if (SCOPE_ARG.startsWith("@")) {
+            return SCOPE_ARG;
         }
 
-        return `@${defaultScope}`;
+        return `@${SCOPE_ARG}`;
     }
 
     const response = await prompts({
@@ -104,6 +121,39 @@ async function getScope(isOptional = true) {
     return `@${response.value}`;
 }
 
+// Ask about creating a workspace, only if done from a non-empty directory with a package.json
+async function checkCreateWorkspace(isEmpty) {
+    if (isEmpty && CREATE_WORKSPACE_ARG) {
+        console.warn(`Ignoring --workspace flag since current directory is empty`);
+
+        return "";
+    }
+
+    try {
+        await fs.access("./package.json");
+    } catch {
+        if (CREATE_WORKSPACE_ARG) {
+            console.warn(`Ignoring --workspace flag since no package.json found`);
+
+            return "";
+        }
+
+        return "";
+    }
+
+    if (CREATE_WORKSPACE_ARG) {
+        return CREATE_WORKSPACE_ARG;
+    }
+
+    const response = await prompts({
+        type: "text",
+        name: "value",
+        message: "Workspace to create (e.g. packages/demoLib)",
+    });
+
+    return response.value;
+}
+
 // Is the current directory empty?
 async function isEmptyDirectory() {
     const files = await fs.readdir(process.cwd());
@@ -115,7 +165,7 @@ async function isEmptyDirectory() {
 async function checkEmptyDirectory() {
     const isEmpty = await isEmptyDirectory();
 
-    if (!isEmpty) {
+    if (!isEmpty && !CREATE_WORKSPACE_ARG) {
         const response = await prompts({
             type: "confirm",
             name: "value",
@@ -123,9 +173,12 @@ async function checkEmptyDirectory() {
         });
 
         if (!response.value) {
+            console.log("Exiting...");
             process.exit(0);
         }
     }
+
+    return isEmpty;
 }
 
 // Sets "type": "module" in package.json
@@ -185,7 +238,7 @@ function patchTsconfigJson(original, scope, skipSetup = false) {
 async function checkPackageJson(scope) {
     try {
         await fs.access("./package.json");
-        console.log("package.json found, continuing...");
+        console.info("package.json found, continuing...");
 
         await patchPackageJson("");
     } catch {
@@ -198,6 +251,23 @@ async function checkPackageJson(scope) {
 
         await patchPackageJson("");
     }
+}
+
+async function getPackageJsonLicense(packageJsonPath) {
+    try {
+        const rootPackageJson = await fs.readFile(path.join(packageJsonPath), "utf-8");
+        // We can just use JSON.parse since package.json is not JSONC
+        const rootPackage = JSON.parse(rootPackageJson);
+        const rootLicense = rootPackage.license;
+
+        return rootLicense;
+    } catch {
+        console.error(
+            `There was an error copying license from the root package.json, please check child packages manually if needed`
+        );
+    }
+
+    return "";
 }
 
 /**
@@ -227,19 +297,28 @@ async function allFiles(dir) {
  * @returns {Promise<void[]>}
  */
 async function copyFiles(fromDir, toDir) {
+    console.info(`Copying files from ${fromDir} to ${toDir}`);
+
     const files = await allFiles(fromDir);
-    return Promise.all(files.map((file) => fs.copyFile(path.join(fromDir, file), path.join(toDir, file))));
+    return Promise.all(
+        // the .gitignore file is prefixed with "dot" in the template-files directory, or else it wouldn't be
+        // published to npm
+        files.map((file) => fs.copyFile(path.join(fromDir, file), path.join(toDir, file.replace(/^dot/, "."))))
+    );
 }
 
 /*
  * Begin flow
  */
+const isEmpty = await checkEmptyDirectory();
 
-const isMonorepo = await checkCreateMonorepo();
+const createWorkspace = await checkCreateWorkspace(isEmpty);
 
-const scope = await getScope(!isMonorepo);
+const isCreatingWorkspace = Boolean(createWorkspace);
 
-await checkEmptyDirectory();
+const isMonorepo = await checkCreateMonorepo(!isCreatingWorkspace);
+
+const scope = await getScope(!isMonorepo && !isCreatingWorkspace);
 
 await checkPackageJson(scope);
 
@@ -251,24 +330,36 @@ const ROOT_FILES_DIR = path.join(TEMPLATE_FILES_DIR, "root");
 const PACKAGE_FILES_DIR = path.join(TEMPLATE_FILES_DIR, "package");
 
 // Copy every file from template-files/root
-await copyFiles(ROOT_FILES_DIR, process.cwd());
+if (!isCreatingWorkspace) {
+    await copyFiles(ROOT_FILES_DIR, process.cwd());
+
+    // Formatting is shared
+    await runCommand(
+        `npm install --save-dev eslint-plugin-prettier eslint-config-prettier ` +
+            "eslint-config-xo eslint-config-xo-typescript @typescript-eslint/parser @typescript-eslint/eslint-plugin "
+    );
+
+    await runCommand(`npm install --save-dev --save-exact prettier`);
+
+    // And the tsconfig dependency
+    await runCommand(`npm install --save-dev  @sindresorhus/tsconfig`);
+}
 
 /**
- * @param {string} directory path to copy template files into, should exist
- * @param {string} workspace workspace flag, e.g. "-w packages/demoLib" or "" if not a monorepo
- * @param {string} sourceFile path to source file, e.g. "src/index.ts"
- * @param {string} testFile path to test file, e.g. "test/index.test.ts"
- * @param {string} scope scope of the package, e.g. "@scope"
+ * @param {Object} options
+ * @param {string} options.directory path to copy template files into, should exist
+ * @param {string} options.workspace workspace flag, e.g. "-w packages/demoLib" or "" if not a monorepo
+ * @param {string} options.sourceFile path to source file, e.g. "src/index.ts"
+ * @param {string} options.testFile path to test file, e.g. "test/index.test.ts"
+ * @param {string} options.license license of the package, e.g. "MIT"
  */
-async function preparePackage(directory, workspace, sourceFile, testFile) {
-    // Install typescript and tsconfig dependency
-    if (workspace) {
-        // only need typescript since the tsconfig is in the root
-        await runCommand(`npm install ${workspace} --save-dev typescript`);
-    } else {
-        // need typescript and tsconfig
-        await runCommand(`npm install --save-dev typescript @sindresorhus/tsconfig`);
+async function preparePackage({ directory, workspace, sourceFile, testFile, license }) {
+    if (license) {
+        await runCommand(`npm ${workspace} pkg set license="${license}"`);
     }
+
+    // Install typescript and eslint to power scripts
+    await runCommand(`npm install ${workspace} --save-dev typescript eslint`);
 
     // Install testing dependencies
     await runCommand(`npm install ${workspace} --save-dev vitest vite-tsconfig-paths`);
@@ -278,14 +369,6 @@ async function preparePackage(directory, workspace, sourceFile, testFile) {
     if (workspace) {
         await copyFiles(PACKAGE_FILES_DIR, directory);
     }
-
-    // Formatting
-    await runCommand(
-        `npm install ${workspace} --save-dev eslint-plugin-prettier eslint-config-prettier ` +
-            "eslint-config-xo eslint-config-xo-typescript @typescript-eslint/parser @typescript-eslint/eslint-plugin"
-    );
-
-    await runCommand(`npm install ${workspace} --save-dev --save-exact prettier`);
 
     // Copy src folder from template-files
     await fs.mkdir(path.join(directory, "src"));
@@ -343,6 +426,8 @@ async function preparePackage(directory, workspace, sourceFile, testFile) {
     await runCommand(`npm ${workspace} run test`);
 }
 
+const rootLicense = await getPackageJsonLicense(path.join(process.cwd(), "package.json"));
+
 if (isMonorepo) {
     await runCommand(`npm install --save-dev typescript @sindresorhus/tsconfig`);
 
@@ -353,33 +438,26 @@ if (isMonorepo) {
     await runCommand(`npm init -y ${libWorkspace} ${scopeArg}`);
 
     const libDir = path.join(process.cwd(), "packages/lib");
-    await preparePackage(libDir, libWorkspace, "src/index.ts", "test/index.test.ts");
+    await preparePackage({
+        directory: libDir,
+        workspace: libWorkspace,
+        sourceFile: "src/index.ts",
+        testFile: "test/index.test.ts",
+        license: rootLicense,
+    });
 
     const appWorkspace = `-w ./packages/app`;
 
     await runCommand(`npm init -y ${appWorkspace} ${scopeArg}`);
 
     const appDir = path.join(process.cwd(), "packages/app");
-    await preparePackage(appDir, appWorkspace, "src/main.ts", "test/main.test.ts");
-
-    // Read root license file
-    try {
-        const rootPackageJson = await fs.readFile(path.join(process.cwd(), "package.json"), "utf-8");
-        // We can just use JSON.parse since package.json is not JSONC
-        const rootPackage = JSON.parse(rootPackageJson);
-        const rootLicense = rootPackage.license;
-
-        if (rootLicense) {
-            await runCommand(`npm ${appWorkspace} pkg set license="${rootLicense}"`);
-            await runCommand(`npm ${libWorkspace} pkg set license="${rootLicense}"`);
-        } else {
-            console.error(`No license found in root package.json, please check child packages manually if needed`);
-        }
-    } catch {
-        console.error(
-            `There was an error copying license from the root package.json, please check child packages manually if needed`
-        );
-    }
+    await preparePackage({
+        directory: appDir,
+        workspace: appWorkspace,
+        sourceFile: "src/main.ts",
+        testFile: "test/main.test.ts",
+        license: rootLicense,
+    });
 
     // Set root build, lint, and test commands to run with the -ws flag
     await runCommand(`npm pkg set scripts.build="npm run build -ws"`);
@@ -390,6 +468,35 @@ if (isMonorepo) {
     await runCommand(`npm run build`);
     await runCommand(`npm run lint`);
     await runCommand(`npm run test`);
+} else if (isCreatingWorkspace) {
+    const workspaceArg = `-w ${createWorkspace}`;
+    const scopeArg = scope === "" ? "" : `--scope=${scope}`;
+
+    await runCommand(`npm init -y ${workspaceArg} ${scopeArg}`);
+
+    const dir = path.join(process.cwd(), createWorkspace);
+    await preparePackage({
+        directory: dir,
+        workspace: workspaceArg,
+        sourceFile: "src/index.ts",
+        testFile: "test/index.test.ts",
+        license: rootLicense,
+    });
+
+    // Run top-level build, lint, and test commands
+    await runCommand(`npm run build`);
+    await runCommand(`npm run lint`);
+    await runCommand(`npm run test`);
 } else {
-    await preparePackage(".", "", "src/index.ts", "test/index.test.ts");
+    await preparePackage({
+        directory: process.cwd(),
+        workspace: "",
+        sourceFile: "src/index.ts",
+        testFile: "test/index.test.ts",
+        license: rootLicense,
+    });
+}
+
+if (!rootLicense && (isMonorepo || isCreatingWorkspace)) {
+    console.error(`No license found in root package.json, please check child packages manually if needed`);
 }

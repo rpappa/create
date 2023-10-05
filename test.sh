@@ -18,7 +18,19 @@ cd $PROJECT_NAME
 
 echo "Creating a new project [$PROJECT_NAME]"
 
-node ../../src/cli.js $@
+npx ../../src/cli.js -- $@
+
+# Keep prompting if we want to re-run (the npx command) until we say no
+while true; do
+  read -p "Do you want to re-run? (y/n) " -n 1 -r
+
+  echo ""
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    npx ../../src/cli.js -- $@
+  else
+    break
+  fi
+done
 
 # Prompt if we want to clean up
 read -p "Do you want to clean up? (y/n) " -n 1 -r

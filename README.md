@@ -18,6 +18,9 @@ Allowed arguments:
 - `--yes` or `-y` will pass through to initial `npm init` if ran
 - `--monorepo` or `-m` will create a monorepo
 - `--scope=` (ex `--scope=@foo`) will use the specified scope when creating packages
+- `--workspace=[package]` (ex `--workspace=packages/foo`) or `-w [package]` will define a new workspace
+  at the specified path. This allows for re-running the script after project creation to initialize a new
+  workspace.
 
 For example:
 
@@ -26,6 +29,14 @@ npx @rpappa/create@latest -y -m --scope=@foo
 ```
 
 This will produce a monorepo with scope `@foo` without any intervention.
+
+Or
+
+```
+npx @rpappa/create -w packages/newLib
+```
+
+To create a new workspace after the first `npm init`.
 
 ## Goals
 
