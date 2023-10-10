@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import { format } from "../src/index.js";
 
 describe("format", () => {

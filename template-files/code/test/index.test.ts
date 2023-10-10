@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import { hello, add } from "../src/index.js";
 
 describe("hello", () => {

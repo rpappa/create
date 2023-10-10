@@ -7,7 +7,7 @@ import { exec } from "node:child_process";
 import prompts from "prompts";
 import jsonc from "jsonc-parser";
 
-console.log(`🔨 @rpappa/create version ${process.env.npm_package_version}`);
+console.log(`🔨 @rpappa/create`);
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -232,6 +232,23 @@ function patchTsconfigJson(original, scope, skipSetup = false) {
 }
 
 /**
+ * Patch eslint config to include "import/internal-regex": "^@scope/*", for monorepos
+ * @param {string} scope
+ */
+async function patchEslintImportInternal(scope) {
+    // For ease, just uncomment "// "import/internal-regex": "^@scope/*"," and replace @scope with scope
+
+    const eslintConfig = await fs.readFile(path.join(process.cwd(), ".eslintrc.cjs"), "utf-8");
+
+    const edited = eslintConfig.replace(
+        `// "import/internal-regex": "^@scope/*",`,
+        `"import/internal-regex": "^${scope}/*",`
+    );
+
+    await fs.writeFile(path.join(process.cwd(), ".eslintrc.cjs"), edited);
+}
+
+/**
  * Check if package.json exists, if not, prompt for npm init
  * @param {string} scope
  */
@@ -336,7 +353,8 @@ if (!isCreatingWorkspace) {
     // Formatting is shared
     await runCommand(
         `npm install --save-dev eslint-plugin-prettier eslint-config-prettier ` +
-            "eslint-config-xo eslint-config-xo-typescript @typescript-eslint/parser @typescript-eslint/eslint-plugin "
+            "eslint-config-xo eslint-config-xo-typescript @typescript-eslint/parser @typescript-eslint/eslint-plugin " +
+            "eslint-plugin-unicorn eslint-plugin-import eslint-import-resolver-typescript"
     );
 
     await runCommand(`npm install --save-dev --save-exact prettier`);
@@ -429,6 +447,8 @@ async function preparePackage({ directory, workspace, sourceFile, testFile, lice
 const rootLicense = await getPackageJsonLicense(path.join(process.cwd(), "package.json"));
 
 if (isMonorepo) {
+    await patchEslintImportInternal(scope);
+
     await runCommand(`npm install --save-dev typescript @sindresorhus/tsconfig`);
 
     const libWorkspace = `-w ./packages/lib`;
