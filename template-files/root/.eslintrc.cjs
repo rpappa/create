@@ -21,6 +21,8 @@ module.exports = {
                 "plugin:unicorn/recommended",
                 "plugin:prettier/recommended",
             ],
+            // This seems to cause issues with vscode auto-fixing in some cases
+            reportUnusedDisableDirectives: false,
             rules: {
                 "capitalized-comments": "off",
                 "@typescript-eslint/naming-convention": [
