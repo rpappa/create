@@ -352,8 +352,8 @@ if (!isCreatingWorkspace) {
 
     // Formatting is shared
     await runCommand(
-        `npm install --save-dev eslint-plugin-prettier eslint-config-prettier ` +
-            "eslint-config-xo eslint-config-xo-typescript @typescript-eslint/parser @typescript-eslint/eslint-plugin " +
+        `npm install --save-dev eslint@8 eslint-plugin-prettier eslint-config-prettier ` +
+            "eslint-config-xo@0.45 eslint-config-xo-typescript@5 @typescript-eslint/parser@7 @typescript-eslint/eslint-plugin@7 " +
             "eslint-plugin-unicorn eslint-plugin-import eslint-import-resolver-typescript"
     );
 
@@ -377,7 +377,7 @@ async function preparePackage({ directory, workspace, sourceFile, testFile, lice
     }
 
     // Install typescript and eslint to power scripts
-    await runCommand(`npm install ${workspace} --save-dev typescript eslint`);
+    await runCommand(`npm install ${workspace} --save-dev typescript eslint@8`);
 
     // Install testing dependencies
     await runCommand(`npm install ${workspace} --save-dev vitest vite-tsconfig-paths`);
